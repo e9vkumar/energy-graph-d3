@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ERCOT Fuel-Mix</title>
+</head>
+
+<body>
+  <style>
+    #myplot {
+      padding-top: 50px;
+    }
+    #legend{
+      display:flex;
+      align-items: center;
+      justify-content: space-evenly;
+      padding-bottom: 40px;
+    }
+    .crosshair-line{
+      stroke:black;
+      stroke-dasharray: 3,3;
+    }
+    .tooltip {
+      position: absolute;
+      background: white;
+      border: 1px solid #aaa;
+      padding: 10px;
+      pointer-events: none;
+      opacity: 0;
+    }
+  </style>
+  <h1>The graph</h1>
+  <div>
+    <label for="start_date" id="start_date">Start Date</label>
+    <input type="date">
+    <label for="end_date" id="end_date">End Date</label>
+    <input type="date">
+  </div>
+  <div id="myplot">
+    <div id="legend"></div>
+    <svg width="1800" height="800">
+      <g class="chart"></g>
+      <g class="crosshair" style="display: none;">
+          <line class="crosshair-line x" y1="0" y2="800"></line>
+          <line class="crosshair-line y" x1="0" x2="1800"></line>
+      </g>
+    </svg>
+    <div class="tooltip"></div>
+  </div>
+  <script src="https://d3js.org/d3.v6.min.js"></script>
+  <script type="module">
+    import * as Plot from "https://cdn.jsdelivr.net/npm/@observablehq/plot@0.6/+esm";
+
+    var data;
+
+    d3.csv("data/ERCOT 5 minute standardized data_2024-05-01T00 00 00-05 00_2024-05-10T23 59 59.999000-05 00.csv").then(function (data) {
+      console.log(data[100]);
+      const sources = [ 'nuclear',  'hydro','coal_and_lignite', 'natural_gas',  'power_storage', 'solar', 'wind','other',];
+      const colorScale = d3.scaleOrdinal(d3.schemeSet2).domain(sources);
+      console.log(colorScale);
+      createlegend(sources,colorScale);
+      const transformeddata = [];
+      data.forEach(entry => {
+        const dateobj = new Date(entry.interval_start_utc);
+        const transformmeddate = new Date(dateobj.getUTCFullYear(),dateobj.getUTCMonth(),dateobj.getUTCDate(),dateobj.getUTCHours(),dateobj.getUTCMinutes(),dateobj.getUTCSeconds(),dateobj.getUTCMilliseconds());
+        const interval_start_date = transformmeddate;
+        // console.log(transformmeddate);
+        sources.forEach(source => {
+          const energy_source = source;
+          const value = entry["fuel_mix." + source]/1000;
+
+          transformeddata.push({
+            date: interval_start_date,
+            energy_source: energy_source,
+            value: value
+          });
+        })
+      })
+      // console.log(transformeddata[106]);
+      plotvisualise(data,transformeddata);
+
+    })
+
+    function createlegend(sources,colorScale){
+      const legend = document.getElementById("legend");
+
+      sources.map(source =>{
+        var ele = document.createElement('div');
+        ele.innerText = source;
+        var color = colorScale(source);
+        console.log(color);
+        ele.style.color = color;
+        legend.appendChild(ele);
+      })
+    }
+
+    function plotvisualise(raw_file,data) {
+      // console.log(data);
+      const chart = Plot.plot({
+        marginLeft: 60,
+        y: { grid: true },
+        color: { columns: 6,scheme: "set2"},
+        marks: [
+          Plot.areaY(data, { x: "date", y: "value", fill: "energy_source", sort:{fill:"ascending"}}),
+          // Plot.crosshairX(data, {x: "date", y: "value"}),
+          // Plot.tip(data, Plot.pointer({x: "Date", y: "Close"})),
+          Plot.lineY(data,{x:"Date",y:"value",tip:"x"}),
+          Plot.ruleY([0]),
+        ],
+        width:1800,
+        height:800,
+      })
+      // console.log(chart);
+      d3.select("svg").append(() => chart);
+
+      const crosshair = d3.select("svg>.crosshair");
+      const tooltip = d3.select(".tooltip");
+      // console.log("crosshair",crosshair);
+      d3.select("svg").on("mouseover", () => {crosshair.style("display", null); tooltip.style("opacity", 0.85);})
+           .on("mouseout", () => {crosshair.style("display", "none"); tooltip.style("opacity", 0);})
+           .on("mousemove", mousemove);
+        function mousemove(event) {
+            const mouseX = d3.pointer(event)[0];
+            const mouseY = d3.pointer(event)[1];
+            // console.log(mouseX);
+            crosshair.select(".crosshair-line.x")
+                     .attr("transform", `translate(${mouseX}, 0)`);
+            crosshair.select(".crosshair-line.y")
+                     .attr("transform", `translate(0, ${mouseY})`); 
+            console.log("start");
+            const bisectDate = d3.bisector(d => console.log(d.interval_start_utc)).left;
+            // console.log(bisectDate);
+            const x0 = chart.scale('x').invert(mouseX);
+            const i = bisectDate(raw_file, x0, 1);
+            // console.log(i);
+            const d0 = raw_file[i-1];
+            const d1 = raw_file[i];
+            // console.log(d0,d1);  
+            const d = x0 - d0.interval_start_utc > d1.interval_start_utc - x0 ? d1:d0;
+            // console.log(d);
+            tooltip.html(`<strong>Date:</strong> ${d.interval_start_utc}<br><strong>Hydro:</strong> ${d["fuel_mix.hydro"]}<br><strong>Natural Gas:</strong> ${d["fuel_mix.natural_gas"]}`)
+                   .style("left", `${event.pageX + 10}px`)
+                   .style("top", `${event.pageY - 10}px`);
+        }
+      //       const d1 = data[i];
+    }
+
+  </script>
+</body>
+
+</html>
