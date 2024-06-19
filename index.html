@@ -5,6 +5,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ERCOT Fuel-Mix</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 </head>
 
 <body>
@@ -12,16 +14,26 @@
     #myplot {
       padding-top: 50px;
     }
-    #legend{
-      display:flex;
+    .heading{
+      font-family: "Ubuntu", sans-serif;
+      font-weight: 500;
+      font-style: normal;
+      font-size: xx-large;
+    }
+
+    #legend {
+      display: flex;
       align-items: center;
       justify-content: space-evenly;
-      padding-bottom: 40px;
+      padding-top: 40px;
+      padding-bottom: 50px;
     }
-    .crosshair-line{
-      stroke:black;
-      stroke-dasharray: 3,3;
+    .crosshair {
+      stroke: black;
+      stroke-width: 1px;
+      stroke-dasharray: 3, 3;
     }
+
     .tooltip {
       position: absolute;
       background: white;
@@ -30,26 +42,73 @@
       pointer-events: none;
       opacity: 0;
     }
+
+    .highlighted {
+      fill: black;
+      stroke: white;
+      stroke-width: 3px;
+    }
+    .top-header{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-right: 30px;
+      padding-top: 40px;
+    }
+    input{
+      padding: 5px;
+      border: 0;
+    }
+    .date_setter{
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+    }
+    .date_input{
+      padding: 5px;
+      border: 1px solid black;
+    }
+    input{
+      padding-left: 10px;
+    }
   </style>
-  <h1>The graph</h1>
-  <div>
-    <label for="start_date" id="start_date">Start Date</label>
-    <input type="date">
-    <label for="end_date" id="end_date">End Date</label>
-    <input type="date">
+  <div class="top-header">
+    <div class="heading">Fuel-Mix ERCOT</div>
+    <div class="date_setter">
+      <div class="date_input"><i class="bi bi-calendar"></i><input type="date" id="dates_input" placeholder="Select Dates"></div>
+    </div>
   </div>
   <div id="myplot">
-    <div id="legend"></div>
     <svg width="1800" height="800">
       <g class="chart"></g>
       <g class="crosshair" style="display: none;">
-          <line class="crosshair-line x" y1="0" y2="800"></line>
-          <line class="crosshair-line y" x1="0" x2="1800"></line>
+        <line class="crosshair-line x" y1="0" y2="800"></line>
+        <line class="crosshair-line y" x1="0" x2="1800"></line>
       </g>
     </svg>
+    <div id="legend"></div>
     <div class="tooltip"></div>
   </div>
   <script src="https://d3js.org/d3.v6.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  
+
+  <script>
+    const daterange = document.getElementById("dates_input");
+    document.addEventListener('DOMContentLoaded', function () {
+      flatpickr(daterange, {
+        mode: "range",
+        dateFormat: 'Y-m-d',
+        onClose: function (selectDates, datestr, instance) {
+          const startDate = selectDates[0];
+          const endDate = selectDates[1];
+
+
+        }
+      }
+      )
+    })
+  </script>
   <script type="module">
     import * as Plot from "https://cdn.jsdelivr.net/npm/@observablehq/plot@0.6/+esm";
 
@@ -57,19 +116,19 @@
 
     d3.csv("data/ERCOT 5 minute standardized data_2024-05-01T00 00 00-05 00_2024-05-10T23 59 59.999000-05 00.csv").then(function (data) {
       console.log(data[100]);
-      const sources = [ 'nuclear',  'hydro','coal_and_lignite', 'natural_gas',  'power_storage', 'solar', 'wind','other',];
-      const colorScale = d3.scaleOrdinal(d3.schemeSet2).domain(sources);
-      console.log(colorScale);
-      createlegend(sources,colorScale);
+      const sources = ['nuclear', 'hydro', 'coal_and_lignite', 'natural_gas', 'power_storage', 'solar', 'wind', 'other',];
+
+      // const colorScale = d3.scaleOrdinal().domain(sources).range(sources.map(source => customColors[source]));
+      // console.log(colorScale);
       const transformeddata = [];
       data.forEach(entry => {
         const dateobj = new Date(entry.interval_start_utc);
-        const transformmeddate = new Date(dateobj.getUTCFullYear(),dateobj.getUTCMonth(),dateobj.getUTCDate(),dateobj.getUTCHours(),dateobj.getUTCMinutes(),dateobj.getUTCSeconds(),dateobj.getUTCMilliseconds());
+        const transformmeddate = new Date(dateobj.getUTCFullYear(), dateobj.getUTCMonth(), dateobj.getUTCDate(), dateobj.getUTCHours(), dateobj.getUTCMinutes(), dateobj.getUTCSeconds(), dateobj.getUTCMilliseconds());
         const interval_start_date = transformmeddate;
         // console.log(transformmeddate);
         sources.forEach(source => {
           const energy_source = source;
-          const value = entry["fuel_mix." + source]/1000;
+          const value = entry["fuel_mix." + source] / 1000;
 
           transformeddata.push({
             date: interval_start_date,
@@ -79,72 +138,183 @@
         })
       })
       // console.log(transformeddata[106]);
-      plotvisualise(data,transformeddata);
+      plotvisualise(data, transformeddata);
 
     })
 
-    function createlegend(sources,colorScale){
+    function createlegend(sources, customColors) {
       const legend = document.getElementById("legend");
 
-      sources.map(source =>{
+      sources.map(source => {
         var ele = document.createElement('div');
-        ele.innerText = source;
-        var color = colorScale(source);
-        console.log(color);
-        ele.style.color = color;
+        ele.innerHTML = `<i class="bi bi-circle-fill" style='color:${customColors[source]}'></i> ${source}`;
         legend.appendChild(ele);
       })
     }
 
-    function plotvisualise(raw_file,data) {
+    function plotvisualise(raw_file, data) {
       // console.log(data);
+      const sources = Array.from(new Set(data.map(d => d.energy_source)));
+
+      // console.log(sources);
+      const customColors = {
+        'nuclear':"#99dd55",
+        'hydro':"#44dd88",
+        'coal_and_lignite':"#ee9944",
+        'natural_gas':"#3366bb",
+        'wind':"#0099cc",
+        'solar':"#dbcd0f",
+        'power_storage':"#cc6666",
+        'other':"#cc6666"
+
+      }
+      const colorScale = d3.scaleOrdinal().domain(sources).range(sources.map(source => customColors[source]));
+      // console.log(colorScale);
+      createlegend(sources, customColors);
       const chart = Plot.plot({
         marginLeft: 60,
         y: { grid: true },
-        color: { columns: 6,scheme: "set2"},
+        color: { columns: 6,domain:sources,range:sources.map(source => customColors[source]) },
         marks: [
-          Plot.areaY(data, { x: "date", y: "value", fill: "energy_source", sort:{fill:"ascending"}}),
+          Plot.areaY(data, { x: "date", y: "value", fill: "energy_source", sort: { fill: "ascending" } }),
           // Plot.crosshairX(data, {x: "date", y: "value"}),
           // Plot.tip(data, Plot.pointer({x: "Date", y: "Close"})),
-          Plot.lineY(data,{x:"Date",y:"value",tip:"x"}),
+          Plot.lineY(data, { x: "Date", y: "value", tip: "x" }),
           Plot.ruleY([0]),
         ],
-        width:1800,
-        height:800,
+        width: 1800,
+        height: 800,
       })
       // console.log(chart);
       d3.select("svg").append(() => chart);
 
+      const graph = document.querySelector("svg");
       const crosshair = d3.select("svg>.crosshair");
-      const tooltip = d3.select(".tooltip");
-      // console.log("crosshair",crosshair);
-      d3.select("svg").on("mouseover", () => {crosshair.style("display", null); tooltip.style("opacity", 0.85);})
-           .on("mouseout", () => {crosshair.style("display", "none"); tooltip.style("opacity", 0);})
-           .on("mousemove", mousemove);
-        function mousemove(event) {
-            const mouseX = d3.pointer(event)[0];
-            const mouseY = d3.pointer(event)[1];
-            // console.log(mouseX);
-            crosshair.select(".crosshair-line.x")
-                     .attr("transform", `translate(${mouseX}, 0)`);
-            crosshair.select(".crosshair-line.y")
-                     .attr("transform", `translate(0, ${mouseY})`); 
-            console.log("start");
-            const bisectDate = d3.bisector(d => console.log(d.interval_start_utc)).left;
-            // console.log(bisectDate);
-            const x0 = chart.scale('x').invert(mouseX);
-            const i = bisectDate(raw_file, x0, 1);
-            // console.log(i);
-            const d0 = raw_file[i-1];
-            const d1 = raw_file[i];
-            // console.log(d0,d1);  
-            const d = x0 - d0.interval_start_utc > d1.interval_start_utc - x0 ? d1:d0;
-            // console.log(d);
-            tooltip.html(`<strong>Date:</strong> ${d.interval_start_utc}<br><strong>Hydro:</strong> ${d["fuel_mix.hydro"]}<br><strong>Natural Gas:</strong> ${d["fuel_mix.natural_gas"]}`)
-                   .style("left", `${event.pageX + 10}px`)
-                   .style("top", `${event.pageY - 10}px`);
+      const tooltip = document.querySelector(".tooltip");
+      // console.log(tooltip); 
+      const verticalline = d3.select("svg").append("line").attr("class","crosshair").attr("y1",0).attr("y2",780).style("visibility","hidden");
+      const horizontalline = d3.select("svg").append("line").attr("class","crosshair").attr("x1",56).attr("x2",1780).style("visibility","hidden");
+      // console.log(graph);
+
+      graph.addEventListener('mousemove', function (event) {
+        const mousepointer = d3.pointer(event, graph);
+        const xScale = chart.scale("x");
+        const yScale = chart.scale("y");
+        const mousedate = xScale.invert(mousepointer[0]);
+        const formatted_date = d3.utcFormat("%Y-%m-%d %H-%M-%S")(mousedate);
+        // console.log(mousedate,formatted_date); 
+        const dateData = data.filter(d => d3.timeHour.floor(d.date).getTime() == d3.timeHour.floor(mousedate).getTime());
+
+
+
+        if (dateData.length > 0) {
+          // console.log(customColors);
+          showTooltip(event, dateData, tooltip,customColors);
+          updateCrosshairs(event,verticalline,horizontalline);
+          showpoints(dateData,xScale,yScale,colorScale);
+          // console.log(xScale,yScale);
         }
-      //       const d1 = data[i];
+        else {
+          hidetooltip();
+          hideCrosshairs(verticalline,horizontalline);
+          hidepoints();
+        }
+      })
+
+      graph.addEventListener('mouseleave', hidetooltip);
+      graph.addEventListener('mouseleave', function(){
+        hideCrosshairs(verticalline,horizontalline);
+    });
+
+      function hidetooltip() {
+        tooltip.style.visibility = "hidden";
+        // console.log("hiding");
+      }
+
+      function sortsources(values) {
+        var sum_val = Object.values(values).reduce((sum, value) => sum + value, 0);
+        var items = Object.keys(values).map(function (key) {
+          return [key, values[key], ((values[key]) / sum_val) * 100];
+        });
+        items.sort(function (i1, i2) {
+          return i2[1] - i1[1];
+        })
+        // console.log(items);
+        return items;
+      }
+
+      function showTooltip(event, data, tooltip,customColors) {
+        // console.log(d3.utcFormat('%Y-%m-%d %H-%M-%S')(data[0].date));
+        var values = {};
+        data.map(d => values[d.energy_source] = d.value)
+        var sorted_data = sortsources(values);
+        // console.log(values);
+        tooltip.innerHTML = `<strong>${d3.utcFormat('%d-%b-%Y %I:%M %p')(data[0].date)}</strong><br>`
+          + sorted_data.map(d => `<i class="bi bi-circle-fill" style='color:${customColors[d[0]]}'></i> ${d[0]}: <b>${d[1].toFixed(2)} GW</b> (${d[2].toFixed(2)}%)`).join('<br>');
+
+        // console.log(data);
+        const left = graph.getBoundingClientRect().left,width = graph.getBoundingClientRect().width;
+        const top = graph.getBoundingClientRect().top,height = graph.getBoundingClientRect().height;
+        // console.log(left,width);
+
+        if (event.pageX > (left+width+55)/2){
+          tooltip.style.left = `${event.pageX - 350}px`;
+        }
+        else{
+          tooltip.style.left = `${event.pageX + 22}px`;
+        }
+        if (event.pageY > (top+height)/2){
+          tooltip.style.top = `${event.pageY -230}px`;
+        }
+        else{
+          tooltip.style.top = `${event.pageY + 20}px`;
+        }
+        tooltip.style.visibility = "visible";
+        tooltip.style.opacity = '0.80';
+        // console.log("showing");
+      }
+
+      function showpoints(data, xscale, yscale, colorScale) {
+        const highlight = highlightcircles();
+        // data.forEach((d, i) =>
+          // highlight[i].select(".highlighted")
+          //   .style("visibility", "visible")
+          //   .attr("cx", xscale(d.date))
+          //   .attr("cy", yscale(d.value))
+          //   .attr(colorScale(d.energy_source))
+          // console.log(d.date)
+            // console.log(xscale.invert(d.date),yscale.invert(d.value))
+        // )
+      }
+      function hidepoints() {
+        d3.selectAll(".highlighted").style("visibility", "hidden")
+      }
+
+      function highlightcircles(){
+        const highlighted = sources.map(d => d3.select("svg").append("circle").attr("class","highlighted").attr("r",5).style("visibility","hidden"));
+        // console.log(highlighted);
+        return highlighted;
+      }
+
+      function updateCrosshairs(mousepointer,verticalline,horizontalline){
+        // console.log(mousepointer.pageX,mousepointer.pageY);
+        const chartwidth = graph.getBoundingClientRect().width;
+        const chartheight = graph.getBoundingClientRect().height;
+        const left = graph.getBoundingClientRect().left;
+        const top = graph.getBoundingClientRect().top;
+        var x=mousepointer.pageX,y=mousepointer.pageY;
+        x = Math.max(left,Math.min(x,left+chartwidth))-10;
+        y = Math.max(top,Math.min(y,top+chartheight)) - 144;
+        verticalline.attr("x1",x).attr("x2",x).style("visibility","visible");
+        horizontalline.attr("y1",y).attr("y2",y).style("visibility","visible");
+      }
+
+      function hideCrosshairs(verticalline,horizontalline){
+        // console.log("hidden",verticalline);
+        verticalline.style("visibility","hidden");
+        horizontalline.style("visibility","hidden");
+      }
+
     }
 
   </script>
